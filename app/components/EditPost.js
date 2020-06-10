@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useContext } from "react"
 import { useImmerReducer } from "use-immer"
 import Page from "./Page"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, withRouter } from "react-router-dom"
 import Axios from "axios"
 import LoadingDotsIcon from "./LoadingDotsIcon"
 import StateContext from "../StateContext"
 import DispatchContext from "../DispatchContext"
+import NotFound from "./NotFound"
 
-function EditPost() {
+function EditPost(props) {
   const appState = useContext(StateContext)
   const appDispatch = useContext(DispatchContext)
   const originalState = {
@@ -25,6 +26,7 @@ function EditPost() {
     isSaving: false,
     id: useParams().id,
     sendCount: 0,
+    notFound: false,
   }
 
   function ourReducer(draft, action) {
@@ -65,6 +67,9 @@ function EditPost() {
           draft.body.message = "You must provide body content."
         }
         break
+      case "notFound":
+        draft.notFound = true
+        break
     }
   }
 
@@ -83,7 +88,15 @@ function EditPost() {
     async function fetchPost() {
       try {
         const response = await Axios.get(`post/${state.id}`, { cancelToken: ourRequest.token })
-        dispatch({ type: "fetchComplete", value: response.data })
+        if (response.data) {
+          dispatch({ type: "fetchComplete", value: response.data })
+          if (appState.user.username != response.data.author.username) {
+            appDispatch({ type: "flashMessage", value: "You do not have permission to edit this post." })
+            props.history.push("/")
+          }
+        } else {
+          dispatch({ type: "notFound" })
+        }
       } catch {
         console.log("There was a problem or the request was cancelled.")
       }
@@ -115,6 +128,10 @@ function EditPost() {
     }
   }, [state.sendCount])
 
+  if (state.notFound) {
+    return <NotFound />
+  }
+
   if (state.isFetching)
     return (
       <Page title="...">
@@ -124,7 +141,10 @@ function EditPost() {
 
   return (
     <Page title="Edit Post">
-      <form onSubmit={submitHandler}>
+      <Link className="small font-weight-bold" to={`/post/${state.id}`}>
+        &laquo; Back to Post
+      </Link>
+      <form className="mt-3" onSubmit={submitHandler}>
         <div className="form-group">
           <label htmlFor="post-title" className="text-muted mb-1">
             <small>Title</small>
@@ -149,4 +169,4 @@ function EditPost() {
   )
 }
 
-export default EditPost
+export default withRouter(EditPost)
